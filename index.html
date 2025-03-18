@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音声録音テスト</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        canvas { border: 1px solid black; width: 100%; max-width: 400px; }
+    </style>
+</head>
+<body>
+
+    <h1>音声録音テスト</h1>
+    <button id="startBtn">録音開始</button>
+    <button id="stopBtn" disabled>停止</button>
+    <canvas id="visualizer"></canvas>
+
+    <script>
+        let audioContext, analyser, microphone, scriptProcessor;
+        let isRecording = false;
+
+        document.getElementById("startBtn").addEventListener("click", async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                scriptProcessor = audioContext.createScriptProcessor(1024, 1, 1);
+
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                microphone.connect(analyser);
+                analyser.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+
+                const canvas = document.getElementById("visualizer");
+                const canvasCtx = canvas.getContext("2d");
+
+                function draw() {
+                    if (!isRecording) return;
+                    requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+
+                    canvasCtx.fillStyle = "white";
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let x = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        const barHeight = dataArray[i] / 2;
+                        canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
+                    }
+                }
+
+                isRecording = true;
+                draw();
+
+                document.getElementById("startBtn").disabled = true;
+                document.getElementById("stopBtn").disabled = false;
+            } catch (error) {
+                console.error("マイクのアクセスに失敗:", error);
+            }
+        });
+
+        document.getElementById("stopBtn").addEventListener("click", () => {
+            if (audioContext) {
+                audioContext.close();
+                isRecording = false;
+            }
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
+        });
+    </script>
+
+</body>
+</html>
